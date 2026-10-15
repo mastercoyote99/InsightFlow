@@ -1,220 +1,162 @@
-# Local Deep Researcher
+# InsightFlow
 
-Local Deep Researcher is a fully local web research assistant that uses any LLM hosted by [Ollama](https://ollama.com/search) or [LMStudio](https://lmstudio.ai/). Give it a topic and it will generate a web search query, gather web search results, summarize the results of web search, reflect on the summary to examine knowledge gaps, generate a new search query to address the gaps, and repeat for a user-defined number of cycles. It will provide the user a final markdown summary with all sources used to generate the summary.
+面向工业数字化研究的 AI 助手原型。
+输入研究主题，自动搜索网页、整理资料、识别信息缺口，
+输出带来源列表的中文 Markdown 报告。
 
-![ollama-deep-research](https://github.com/user-attachments/assets/1c6b28f8-6b64-42ba-a491-1ab2875d50ea)
+当前版本：v0.1｜本地命令行原型
 
-Short summary video:
-<video src="https://github.com/user-attachments/assets/02084902-f067-4658-9683-ff312cab7944" controls></video>
+> 基于 langchain-ai/local-deep-researcher 二次开发。
+> 本项目重点探索模型接入、搜索可靠性与研究输出的可追溯性，
+> 尚未达到生产可用或研究结论自动核验的水平。
 
-## 🔥 Updates 
+## 示例与开发记录
 
-* 8/6/25: Added support for tool calling and [gpt-oss](https://openai.com/index/introducing-gpt-oss/). 
+- [示例报告及阅读说明](examples/README.md)
+- [制造业设备维护研究报告](examples/manufacturing-maintenance-report-v0.1.md)
+- [开发过程与验证记录](docs/development-log.md)
 
-> ⚠️ **WARNING (8/6/25)**: The `gpt-oss` models do not support JSON mode in Ollama. Select `use_tool_calling` in the configuration to use tool calling instead of JSON mode.
+## 为什么做这个项目
 
-## 📺 Video Tutorials
+结合自身 MES 开发、需求沟通和上线支持经历，
+我希望探索 AI 如何辅助工业场景的资料检索与技术调研。
 
-See it in action or build it yourself? Check out these helpful video tutorials:
-- [Overview of Local Deep Researcher with R1](https://www.youtube.com/watch?v=sGUjmyfof4Q) - Load and test [DeepSeek R1](https://api-docs.deepseek.com/news/news250120) [distilled models](https://ollama.com/library/deepseek-r1).
-- [Building Local Deep Researcher from Scratch](https://www.youtube.com/watch?v=XGuTzHoqlj8) - Overview of how this is built.
+本阶段围绕制造业设备维护知识问答开展实践：
+将分散的网页资料整理为有来源的研究初稿，
+同时识别资料不足、来源质量和模型生成中的问题。
 
-## 🚀 Quickstart
+## 工作流程
 
-Clone the repository:
-```shell
-git clone https://github.com/langchain-ai/local-deep-researcher.git
-cd local-deep-researcher
-```
+1. 根据研究主题生成搜索词。
+2. 检索网页并整理摘要与来源。
+3. 根据资料生成或更新总结。
+4. 识别信息缺口，生成后续搜索问题。
+5. 根据搜索轮数决定继续检索或结束。
+6. 整理来源列表，将报告保存为 Markdown。
 
-Then edit the `.env` file to customize the environment variables according to your needs. These environment variables control the model selection, search tools, and other configuration settings. When you run the application, these values will be automatically loaded via `python-dotenv` (because `langgraph.json` point to the "env" file).
-```shell
-cp .env.example .env
-```
+当前实现中，最后一轮仍会执行反思，
+但生成的追问不会继续用于搜索。
 
-### Selecting local model with Ollama
+## 开源基础与我的改进
 
-1. Download the Ollama app for Mac [here](https://ollama.com/download).
+原项目提供 LangGraph 状态管理、研究节点、
+搜索集成和总结反思流程。
 
-2. Pull a local LLM from [Ollama](https://ollama.com/search). As an [example](https://ollama.com/library/deepseek-r1:8b):
-```shell
-ollama pull deepseek-r1:8b
-```
+本阶段完成的主要改动：
 
-3. Optionally, update the `.env` file with the following Ollama configuration settings. 
+| 改动 | 解决的问题 | 已有验证 |
+| --- | --- | --- |
+| 新增 OpenRouter 模型接入 | 使用可访问的模型服务运行工作流 | 通过独立调用、工具调用和完整运行验证 |
+| 将搜索依赖迁移至 ddgs | 旧搜索库在本地测试中返回零结果 | 新依赖与项目搜索函数返回真实来源 |
+| 添加空结果中断与诊断输出 | 没有资料时仍生成肯定语气的报告 | 空结果触发异常，停止后续生成 |
+| 增加候选结果并过滤已知 Bing 广告链接 | 广告跳转链接混入研究来源 | 完成正常检索验证；广告拦截仍需固定样例测试 |
+| 修正搜索次数判断 | 配置上限与实际搜索轮数不一致 | 一轮配置对应一轮实际搜索 |
+| 调整引用方式 | 模型复制长网址时改写字符或遗漏参数 | 正文引用标题，末尾由程序附上原始链接 |
+| 添加运行与报告保存脚本 | 方便本地运行和检查产出 | 成功输出 Markdown 报告 |
 
-* If set, these values will take precedence over the defaults set in the `Configuration` class in `configuration.py`. 
-```shell
-LLM_PROVIDER=ollama
-OLLAMA_BASE_URL="http://localhost:11434" # Ollama service endpoint, defaults to `http://localhost:11434` 
-LOCAL_LLM=model # the model to use, defaults to `llama3.2` if not set
-```
+以上为功能验证记录，尚未形成系统性性能评测。
 
-### Selecting local model with LMStudio
+## 技术组成
 
-1. Download and install LMStudio from [here](https://lmstudio.ai/).
+- Python
+- LangGraph：状态管理、节点编排与条件路由
+- LangChain / ChatOpenAI：模型调用接口
+- OpenRouter：模型服务接入
+- Pydantic：结构化搜索词定义
+- ddgs：网页搜索
+- Markdown：报告与开发记录
 
-2. In LMStudio:
-   - Download and load your preferred model (e.g., qwen_qwq-32b)
-   - Go to the "Local Server" tab
-   - Start the server with the OpenAI-compatible API
-   - Note the server URL (default: http://localhost:1234/v1)
+当前使用网页搜索摘要作为外部信息来源，
+尚未实现本地文档切分、Embedding 与向量库检索。
 
-3. Optionally, update the `.env` file with the following LMStudio configuration settings. 
+## 本地运行
 
-* If set, these values will take precedence over the defaults set in the `Configuration` class in `configuration.py`. 
-```shell
-LLM_PROVIDER=lmstudio
-LOCAL_LLM=qwen_qwq-32b  # Use the exact model name as shown in LMStudio
-LMSTUDIO_BASE_URL=http://localhost:1234/v1
-```
+以下命令适用于 Windows PowerShell，
+请先进入项目根目录。
 
-### Selecting search tool
+本项目本地实践使用 Python 3.12，
+尚未验证其他 Python 版本下的完整运行兼容性。
 
-By default, it will use [DuckDuckGo](https://duckduckgo.com/) for web search, which does not require an API key. But you can also use [SearXNG](https://docs.searxng.org/), [Tavily](https://tavily.com/) or [Perplexity](https://www.perplexity.ai/hub/blog/introducing-the-sonar-pro-api) by adding their API keys to the environment file. Optionally, update the `.env` file with the following search tool configuration and API keys. If set, these values will take precedence over the defaults set in the `Configuration` class in `configuration.py`. 
-```shell
-SEARCH_API=xxx # the search API to use, such as `duckduckgo` (default)
-TAVILY_API_KEY=xxx # the tavily API key to use
-PERPLEXITY_API_KEY=xxx # the perplexity API key to use
-MAX_WEB_RESEARCH_LOOPS=xxx # the maximum number of research loop steps, defaults to `3`
-FETCH_FULL_PAGE=xxx # fetch the full page content (with `duckduckgo`), defaults to `false`
-```
-
-### Running with LangGraph Studio
-
-#### Mac
-
-1. (Recommended) Create a virtual environment:
-```bash
-python -m venv .venv
-source .venv/bin/activate
-```
-
-2. Launch LangGraph server:
-
-```bash
-# Install uv package manager
-curl -LsSf https://astral.sh/uv/install.sh | sh
-uvx --refresh --from "langgraph-cli[inmem]" --with-editable . --python 3.11 langgraph dev
-```
-
-#### Windows
-
-1. (Recommended) Create a virtual environment: 
-
-* Install `Python 3.11` (and add to PATH during installation). 
-* Restart your terminal to ensure Python is available, then create and activate a virtual environment:
+### 1. 创建虚拟环境并安装依赖
 
 ```powershell
 python -m venv .venv
-.venv\Scripts\Activate.ps1
+.\.venv\Scripts\python.exe -m pip install -e .
 ```
 
-2. Launch LangGraph server:
+### 2. 设置研究主题
+
+打开 `run_insightflow.py`，修改 `topic`。
+
+脚本中还可以调整：
+
+- `LOCAL_LLM`：模型标识。
+- `MAX_WEB_RESEARCH_LOOPS`：搜索轮数。
+- `FETCH_FULL_PAGE`：是否尝试抓取网页全文。
+
+本示例使用一轮搜索，并关闭全文抓取。
+
+### 3. 运行
 
 ```powershell
-# Install dependencies
-pip install -e .
-pip install -U "langgraph-cli[inmem]"            
-
-# Start the LangGraph server
-langgraph dev
+.\.venv\Scripts\python.exe .\run_insightflow.py
 ```
 
-### Using the LangGraph Studio UI
+程序读取 `OPENROUTER_API_KEY` 环境变量；
+未设置时，会提示在终端中隐藏输入密钥。
 
-When you launch LangGraph server, you should see the following output and Studio will open in your browser:
-> Ready!
+需要自行准备 OpenRouter API Key。
+模型可用性、额度与费用以服务方实时信息为准。
+不要将密钥写入代码或提交至 Git。
 
-> API: http://127.0.0.1:2024
+### 4. 查看结果
 
-> Docs: http://127.0.0.1:2024/docs
+报告保存在：
 
-> LangGraph Studio Web UI: https://smith.langchain.com/studio/?baseUrl=http://127.0.0.1:2024
-
-Open `LangGraph Studio Web UI` via the URL above. In the `configuration` tab, you can directly set various assistant configurations. Keep in mind that the priority order for configuration values is:
-
-```
-1. Environment variables (highest priority)
-2. LangGraph UI configuration
-3. Default values in the Configuration class (lowest priority)
+```text
+outputs/mes_rag_report_日期_时间.md
 ```
 
-<img width="1621" alt="Screenshot 2025-01-24 at 10 08 31 PM" src="https://github.com/user-attachments/assets/7cfd0e04-28fd-4cfa-aee5-9a556d74ab21" />
+`outputs/` 不纳入版本控制。
+经过挑选的展示样例单独放在 `examples/`。
 
-Give the assistant a topic for research, and you can visualize its process!
+## 主要文件
 
-<img width="1621" alt="Screenshot 2025-01-24 at 10 08 22 PM" src="https://github.com/user-attachments/assets/4de6bd89-4f3b-424c-a9cb-70ebd3d45c5f" />
+| 文件 | 作用 |
+| --- | --- |
+| `run_insightflow.py` | 本地配置、启动流程、显示进度并保存报告 |
+| `src/ollama_deep_researcher/graph.py` | 研究节点与流程连接 |
+| `src/ollama_deep_researcher/state.py` | 研究主题、资料、来源和总结等状态 |
+| `src/ollama_deep_researcher/configuration.py` | 模型与搜索配置 |
+| `src/ollama_deep_researcher/utils.py` | 搜索、来源格式化等工具函数 |
+| `src/ollama_deep_researcher/prompts.py` | 查询、总结和反思提示词 |
 
-### Model Compatibility Note
+## 当前限制
 
-When selecting a local LLM, set steps use structured JSON output. Some models may have difficulty with this requirement, and the assistant has fallback mechanisms to handle this. As an example, the [DeepSeek R1 (7B)](https://ollama.com/library/deepseek-llm:7b) and [DeepSeek R1 (1.5B)](https://ollama.com/library/deepseek-r1:1.5b) models have difficulty producing required JSON output, and the assistant will use a fallback mechanism to handle this.
-  
-### Browser Compatibility Note
+- 主要依据搜索摘要，未系统核验网页全文。
+- 搜索结果可能偏题、重复或包含营销内容。
+- 广告过滤仅覆盖已知链接模式。
+- 来源标题引用尚未实现自动匹配校验。
+- 来源存在不代表每条结论都被来源支持。
+- 搜索服务与模型输出可能变化，结果不保证完全复现。
+- 尚无系统性准确率、时延或成本评测。
+- 当前为命令行原型，尚未实现 Web 界面。
 
-When accessing the LangGraph Studio UI:
-- Firefox is recommended for the best experience
-- Safari users may encounter security warnings due to mixed content (HTTPS/HTTP)
-- If you encounter issues, try:
-  1. Using Firefox or another browser
-  2. Disabling ad-blocking extensions
-  3. Checking browser console for specific error messages
+## 下一步计划
 
-## How it works
+- 使用固定样例验证空结果保护与广告过滤。
+- 选择三个固定主题，对比一轮与两轮搜索。
+- 记录耗时、来源相关性、新增有效信息与引用支持情况。
+- 引入来源编号及程序校验，减少引用错误。
+- 根据评估结果决定是否增加全文抓取与文档检索。
 
-Local Deep Researcher is inspired by [IterDRAG](https://arxiv.org/html/2410.04343v1#:~:text=To%20tackle%20this%20issue%2C%20we,used%20to%20generate%20intermediate%20answers.). This approach will decompose a query into sub-queries, retrieve documents for each one, answer the sub-query, and then build on the answer by retrieving docs for the second sub-query. Here, we do similar:
-- Given a user-provided topic, use a local LLM (via [Ollama](https://ollama.com/search) or [LMStudio](https://lmstudio.ai/)) to generate a web search query
-- Uses a search engine / tool to find relevant sources
-- Uses LLM to summarize the findings from web search related to the user-provided research topic
-- Then, it uses the LLM to reflect on the summary, identifying knowledge gaps
-- It generates a new search query to address the knowledge gaps
-- The process repeats, with the summary being iteratively updated with new information from web search
-- Runs for a configurable number of iterations (see `configuration` tab)
+## 致谢与许可证
 
-## Outputs
+本项目基于以下开源项目二次开发：
 
-The output of the graph is a markdown file containing the research summary, with citations to the sources used. All sources gathered during research are saved to the graph state. You can visualize them in the graph state, which is visible in LangGraph Studio:
+https://github.com/langchain-ai/local-deep-researcher
 
-![Screenshot 2024-12-05 at 4 08 59 PM](https://github.com/user-attachments/assets/e8ac1c0b-9acb-4a75-8c15-4e677e92f6cb)
+保留上游 MIT 许可证及版权声明，详见仓库中的 LICENSE。
+原始项目说明备份见：
 
-The final summary is saved to the graph state as well:
-
-![Screenshot 2024-12-05 at 4 10 11 PM](https://github.com/user-attachments/assets/f6d997d5-9de5-495f-8556-7d3891f6bc96)
-
-## Deployment Options
-
-There are [various ways](https://langchain-ai.github.io/langgraph/concepts/#deployment-options) to deploy this graph. See [Module 6](https://github.com/langchain-ai/langchain-academy/tree/main/module-6) of LangChain Academy for a detailed walkthrough of deployment options with LangGraph.
-
-## TypeScript Implementation
-
-A TypeScript port of this project (without Perplexity search) is available at:
-https://github.com/PacoVK/ollama-deep-researcher-ts
-
-## Running as a Docker container
-
-The included `Dockerfile` only runs LangChain Studio with local-deep-researcher as a service, but does not include Ollama as a dependant service. You must run Ollama separately and configure the `OLLAMA_BASE_URL` environment variable. Optionally you can also specify the Ollama model to use by providing the `LOCAL_LLM` environment variable.
-
-Clone the repo and build an image:
-```
-$ docker build -t local-deep-researcher .
-```
-
-Run the container:
-```
-$ docker run --rm -it -p 2024:2024 \
-  -e SEARCH_API="tavily" \ 
-  -e TAVILY_API_KEY="tvly-***YOUR_KEY_HERE***" \
-  -e LLM_PROVIDER=ollama \
-  -e OLLAMA_BASE_URL="http://host.docker.internal:11434/" \
-  -e LOCAL_LLM="llama3.2" \  
-  local-deep-researcher
-```
-
-NOTE: You will see log message:
-```
-2025-02-10T13:45:04.784915Z [info     ] 🎨 Opening Studio in your browser... [browser_opener] api_variant=local_dev message=🎨 Opening Studio in your browser...
-URL: https://smith.langchain.com/studio/?baseUrl=http://0.0.0.0:2024
-```
-...but the browser will not launch from the container.
-
-Instead, visit this link with the correct baseUrl IP address: [`https://smith.langchain.com/studio/thread?baseUrl=http://127.0.0.1:2024`](https://smith.langchain.com/studio/thread?baseUrl=http://127.0.0.1:2024)
+[上游 README](docs/upstream-README.md)
