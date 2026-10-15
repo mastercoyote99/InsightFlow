@@ -10,23 +10,8 @@ from time import perf_counter
 
 ROOT = Path(__file__).resolve().parent
 
-TOPIC = (
-    "研究检索增强生成（Retrieval-Augmented Generation）"
-    "在制造业设备维护知识问答中的应用。"
-    "搜索时使用简洁的英文关键词，围绕一个核心问题，"
-    "初次搜索优先使用 retrieval augmented generation manufacturing maintenance，"
-    "后续搜索针对资料中的信息缺口，不要堆砌多个场景。"
-    "最终报告用中文，分为：来源支持的发现、"
-    "对 MES 运维的应用建议、证据不足与待验证问题。"
-    "每条来源支持的发现使用【来源：原始标题】标注，"
-    "保留检索提供的标题，不自行补全被截断的标题。"
-    "正文不要生成网址，原始链接由程序在报告末尾统一附上。"
-    "厂商或项目作者的能力描述必须明确标注为自述，"
-    "不得当作独立验证的效果。"
-    "应用建议明确标注为建议，不得写成已验证事实。"
-    "如果资料只有搜索摘要，明确说明未核对全文，"
-    "不要推断摘要未提供的实验结果或效果数字。"
-)
+TOPIC = "研究检索增强生成（Retrieval-Augmented Generation）在制造业设备维护知识问答中的应用。"
+
 
 
 def git_output(*args):
@@ -59,6 +44,7 @@ def code_fingerprint():
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--loops", type=int, choices=[1, 2], required=True)
+    parser.add_argument("--topic", default=TOPIC)
     args = parser.parse_args()
 
     settings = {
@@ -88,18 +74,20 @@ def main():
     metadata = {
         "run_id": run_id,
         "started_at": datetime.now().astimezone().isoformat(),
-        "topic": TOPIC,
+        "topic": args.topic,
         "settings": settings,
         "git_commit": git_output("rev-parse", "HEAD"),
         "git_status": git_output("status", "--short"),
         "code_sha256": code_fingerprint(),
         "status": "running",
+        "version": "0.2",
         "completed_search_loops": 0,
         "completed_nodes": [],
         "timing_scope": "graph execution and local event logging; excludes key input",
     }
 
     final_report = None
+    source_registry = []
     current_query = None
     failure = None
     start = perf_counter()
@@ -110,7 +98,7 @@ def main():
     try:
         with (run_dir / "events.jsonl").open("w", encoding="utf-8") as log:
             for event in graph.stream(
-                {"research_topic": TOPIC},
+                {"research_topic": args.topic},
                 config={"recursion_limit": 30},
                 stream_mode="updates",
             ):
@@ -122,12 +110,14 @@ def main():
                             current_query = update["search_query"]
 
                         if node == "web_research":
+                            source_registry = update.get("source_registry", [])
                             metadata["completed_search_loops"] = update.get(
                                 "research_loop_count", 0
                             )
 
                         if node == "finalize_summary":
                             final_report = update.get("running_summary")
+                            metadata["citation_check"] = update.get("citation_check", {})
 
                     record = {
                         "node": node,
@@ -147,6 +137,10 @@ def main():
         if not final_report:
             raise RuntimeError("No final report returned.")
 
+        (run_dir / "report.md").write_text(final_report, encoding="utf-8")
+        (run_dir / "citation-check.json").write_text(
+            json.dumps(metadata.get("citation_check", {}), ensure_ascii=False, indent=2), encoding="utf-8"
+        )
         metadata["status"] = "success"
 
     except KeyboardInterrupt:
@@ -164,17 +158,20 @@ def main():
         metadata["elapsed_seconds"] = round(perf_counter() - start, 3)
         metadata["finished_at"] = datetime.now().astimezone().isoformat()
 
+        (run_dir / "sources.json").write_text(
+            json.dumps(source_registry, ensure_ascii=False, indent=2), encoding="utf-8"
+        )
         (run_dir / "metadata.json").write_text(
             json.dumps(metadata, ensure_ascii=False, indent=2),
             encoding="utf-8",
         )
 
     if metadata["status"] == "success":
-        (run_dir / "report.md").write_text(final_report, encoding="utf-8")
         print("\nReport saved:", run_dir / "report.md")
     else:
         print("\n" + failure)
 
+    print("Citation check:", metadata.get("citation_check", {}).get("status", "unavailable"))
     print("Status:", metadata["status"])
     print("Search loops:", metadata["completed_search_loops"])
     print("Elapsed seconds:", metadata["elapsed_seconds"])

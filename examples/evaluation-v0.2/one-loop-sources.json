@@ -1,0 +1,44 @@
+[
+  {
+    "id": "S1",
+    "url": "https://www.sciencedirect.com/science/article/pii/S1474034625001053",
+    "canonical_url": "https://www.sciencedirect.com/science/article/pii/S1474034625001053",
+    "title": "Empowering LLMs by hybrid retrieval-augmented generation for domain ...",
+    "first_seen_round": 1,
+    "observations": [
+      {
+        "round": 1,
+        "title": "Empowering LLMs by hybrid retrieval-augmented generation for domain ...",
+        "snippet": "Abstract Large language models (LLMs) have shown remarkable performances in generic question-answering (QA) but often suffer from domain gaps and outdated knowledge in smart manufacturing (SM). Retrieval-augmented generation (RAG) based on LLMs has emerged as a potential approach by incorporating an external knowledge base."
+      }
+    ]
+  },
+  {
+    "id": "S2",
+    "url": "https://www.sciencedirect.com/science/article/pii/S2095809925004527",
+    "canonical_url": "https://www.sciencedirect.com/science/article/pii/S2095809925004527",
+    "title": "Knowledge-Enhanced Industrial Question-Answering Using Large Language ...",
+    "first_seen_round": 1,
+    "observations": [
+      {
+        "round": 1,
+        "title": "Knowledge-Enhanced Industrial Question-Answering Using Large Language ...",
+        "snippet": "To overcome these challenges, this study proposes an industrial retrieval-augmented generation (RAG) method designed to enhance large language models (LLMs) using domain-specific knowledge, thereby improving the precision of question answering."
+      }
+    ]
+  },
+  {
+    "id": "S3",
+    "url": "https://www.researchgate.net/publication/401086332_A_Multi-Agent_and_Synergistic_Knowledge_Graph_Retrieval-Augmented_Generation_Framework_for_Intelligent_Maintenance",
+    "canonical_url": "https://www.researchgate.net/publication/401086332_A_Multi-Agent_and_Synergistic_Knowledge_Graph_Retrieval-Augmented_Generation_Framework_for_Intelligent_Maintenance",
+    "title": "A Multi-Agent and Synergistic Knowledge Graph Retrieval-Augmented ...",
+    "first_seen_round": 1,
+    "observations": [
+      {
+        "round": 1,
+        "title": "A Multi-Agent and Synergistic Knowledge Graph Retrieval-Augmented ...",
+        "snippet": "To address these challenges, we propose MAKG (Multi-Agent and synergistic Knowledge Graph), a framework that synergizes Retrieval-Augmented Generation (RAG) with a multi-agent system for ..."
+      }
+    ]
+  }
+]

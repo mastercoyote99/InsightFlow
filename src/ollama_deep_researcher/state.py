@@ -6,6 +6,8 @@ from typing_extensions import Annotated
 @dataclass(kw_only=True)
 class SummaryState:
     research_topic: str = field(default=None)  # Report topic
+    source_registry: list = field(default_factory=list)
+    citation_check: dict = field(default_factory=dict)
     search_query: str = field(default=None)  # Search query
     web_research_results: Annotated[list, operator.add] = field(default_factory=list)
     sources_gathered: Annotated[list, operator.add] = field(default_factory=list)
@@ -20,4 +22,6 @@ class SummaryStateInput:
 
 @dataclass(kw_only=True)
 class SummaryStateOutput:
+    source_registry: list = field(default_factory=list)
+    citation_check: dict = field(default_factory=dict)
     running_summary: str = field(default=None)  # Final report

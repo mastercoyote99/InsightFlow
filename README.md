@@ -138,7 +138,49 @@ outputs/mes_rag_report_日期_时间.md
 - `metadata.json`：配置、代码指纹、耗时和运行状态。
 - `events.jsonl`：已完成节点及其输出。
 
-失败或中断时保留已有记录，不保证生成最终报告。
+失败或中断时保留已有记录，不保证生成最终报告。@'
+from pathlib import Path
+from datetime import datetime
+import re
+
+p = Path("docs/evaluation-v0.1.md")
+text = p.read_text(encoding="utf-8-sig")
+
+backup_dir = Path("outputs")
+backup_dir.mkdir(exist_ok=True)
+backup = backup_dir / (
+    "evaluation-before-format-fix-"
+    + datetime.now().strftime("%Y%m%d_%H%M%S")
+    + ".md"
+)
+backup.write_text(text, encoding="utf-8")
+
+# Restore escaped Markdown punctuation in this prose document.
+text = re.sub(r"\\([\\`*_{}\[\]()#+.!|>-])", r"\1", text)
+
+lines = text.splitlines()
+cleaned = []
+
+for i, line in enumerate(lines):
+    line = line.rstrip()
+
+    if not line:
+        if not cleaned or cleaned[-1] == "":
+            continue
+
+        next_line = next(
+            (s.strip() for s in lines[i + 1:] if s.strip()),
+            "",
+        )
+        if cleaned[-1].lstrip().startswith("|") and next_line.startswith("|"):
+            continue
+
+    cleaned.append(line)
+
+p.write_text("\n".join(cleaned).strip() + "\n", encoding="utf-8")
+print("Fixed:", p)
+print("Backup:", backup)
+'@ | .\.venv\Scripts\python.exe -
 
 ## 主要文件
 
@@ -169,6 +211,17 @@ outputs/mes_rag_report_日期_时间.md
 - 记录耗时、来源相关性、新增有效信息与引用支持情况。
 - 引入来源编号及程序校验，减少引用错误。
 - 根据评估结果决定是否增加全文抓取与文档检索。
+
+## v0.2：来源管理与引用检查
+
+新增稳定来源编号、网址去重、引用格式检查和运行进度提示，
+并移除最后一轮的多余反思调用。
+
+6 项离线测试通过；首次真实一轮运行成功，用时 44.868 秒。
+引用格式检查通过，内容准确性仍需人工核验。
+
+- [改进与验证说明](docs/v0.2-changes.md)
+- [真实运行记录与报告](examples/evaluation-v0.2/README.md)
 
 ## 致谢与许可证
 

@@ -1,3 +1,5 @@
+from ollama_deep_researcher.sources import merge_sources, check_citations, render_sources
+from ollama_deep_researcher.progress import progress
 import json
 import os
 from langchain_openai import ChatOpenAI
@@ -73,7 +75,7 @@ def generate_search_query_with_structured_output(
         try:
             tool_data = result.tool_calls[0]["args"]
             search_query = tool_data.get(tool_query_field)
-            return {"search_query": search_query}
+            return {"search_query": search_query.strip() if isinstance(search_query, str) and search_query.strip() else fallback_query}
         except (IndexError, KeyError):
             return {"search_query": fallback_query}
     
@@ -89,7 +91,7 @@ def generate_search_query_with_structured_output(
             search_query = parsed_json.get(json_query_field)
             if not search_query:
                 return {"search_query": fallback_query}
-            return {"search_query": search_query}
+            return {"search_query": search_query.strip() if isinstance(search_query, str) and search_query.strip() else fallback_query}
         except (json.JSONDecodeError, KeyError):
             if configurable.strip_thinking_tokens:
                 content = strip_thinking_tokens(content)
@@ -154,6 +156,7 @@ def get_llm(configurable: Configuration):
             )
 
 # Nodes
+@progress
 def generate_query(state: SummaryState, config: RunnableConfig):
     """LangGraph node that generates a search query based on the research topic.
 
@@ -208,6 +211,7 @@ def generate_query(state: SummaryState, config: RunnableConfig):
     )
 
 
+@progress
 def web_research(state: SummaryState, config: RunnableConfig):
     """LangGraph node that performs web research using the generated search query.
 
@@ -235,29 +239,14 @@ def web_research(state: SummaryState, config: RunnableConfig):
             fetch_full_page=configurable.fetch_full_page,
             max_results=1,
         )
-        search_str = deduplicate_and_format_sources(
-            search_results,
-            max_tokens_per_source=MAX_TOKENS_PER_SOURCE,
-            fetch_full_page=configurable.fetch_full_page,
-        )
     elif search_api == "perplexity":
         search_results = perplexity_search(
             state.search_query, state.research_loop_count
-        )
-        search_str = deduplicate_and_format_sources(
-            search_results,
-            max_tokens_per_source=MAX_TOKENS_PER_SOURCE,
-            fetch_full_page=configurable.fetch_full_page,
         )
     elif search_api == "duckduckgo":
         search_results = duckduckgo_search(
             state.search_query,
             max_results=3,
-            fetch_full_page=configurable.fetch_full_page,
-        )
-        search_str = deduplicate_and_format_sources(
-            search_results,
-            max_tokens_per_source=MAX_TOKENS_PER_SOURCE,
             fetch_full_page=configurable.fetch_full_page,
         )
     elif search_api == "searxng":
@@ -266,21 +255,23 @@ def web_research(state: SummaryState, config: RunnableConfig):
             max_results=3,
             fetch_full_page=configurable.fetch_full_page,
         )
-        search_str = deduplicate_and_format_sources(
-            search_results,
-            max_tokens_per_source=MAX_TOKENS_PER_SOURCE,
-            fetch_full_page=configurable.fetch_full_page,
-        )
     else:
         raise ValueError(f"Unsupported search API: {configurable.search_api}")
 
+    registry, evidence = merge_sources(
+        state.source_registry, search_results.get("results", []),
+        state.research_loop_count + 1,
+    )
     return {
+        "source_registry": registry,
         "sources_gathered": [format_sources(search_results)],
         "research_loop_count": state.research_loop_count + 1,
-        "web_research_results": [search_str],
+        "web_research_results": [evidence],
     }
 
 
+
+@progress
 def summarize_sources(state: SummaryState, config: RunnableConfig):
     """LangGraph node that summarizes web research results.
 
@@ -349,6 +340,7 @@ def summarize_sources(state: SummaryState, config: RunnableConfig):
     return {"running_summary": running_summary}
 
 
+@progress
 def reflect_on_summary(state: SummaryState, config: RunnableConfig):
     """LangGraph node that identifies knowledge gaps and generates follow-up queries.
 
@@ -405,6 +397,7 @@ def reflect_on_summary(state: SummaryState, config: RunnableConfig):
     )
 
 
+@progress
 def finalize_summary(state: SummaryState):
     """LangGraph node that finalizes the research summary.
 
@@ -419,29 +412,24 @@ def finalize_summary(state: SummaryState):
         Dictionary with state update, including running_summary key containing the formatted final summary with sources
     """
 
-    # Deduplicate sources before joining
-    seen_sources = set()
-    unique_sources = []
+    report = state.running_summary or ""
+    validation = check_citations(report, state.source_registry)
+    warning = ""
+    if validation["status"] == "warning":
+        warning = ("\n\n> 引用格式检查未通过，请人工复核。未知编号："
+                   + str(validation["unknown_ids"])
+                   + "；正文网址数：" + str(len(validation["body_urls"]))
+                   + "；缺少编号引用：" + str(validation["missing_citations"]))
+    return {
+        "running_summary": report + warning + "\n\n## Sources\n" + render_sources(state.source_registry),
+        "citation_check": validation,
+    }
 
-    for source in state.sources_gathered:
-        # Split the source into lines and process each individually
-        for line in source.split("\n"):
-            # Only process non-empty lines
-            if line.strip() and line not in seen_sources:
-                seen_sources.add(line)
-                unique_sources.append(line)
-
-    # Join the deduplicated sources
-    all_sources = "\n".join(unique_sources)
-    state.running_summary = (
-        f"## Summary\n{state.running_summary}\n\n ### Sources:\n{all_sources}"
-    )
-    return {"running_summary": state.running_summary}
 
 
 def route_research(
     state: SummaryState, config: RunnableConfig
-) -> Literal["finalize_summary", "web_research"]:
+) -> Literal["finalize_summary", "reflect_on_summary"]:
     """LangGraph routing function that determines the next step in the research flow.
 
     Controls the research loop by deciding whether to continue gathering information
@@ -452,12 +440,12 @@ def route_research(
         config: Configuration for the runnable, including max_web_research_loops setting
 
     Returns:
-        String literal indicating the next node to visit ("web_research" or "finalize_summary")
+        String literal indicating the next node to visit ("reflect_on_summary" or "finalize_summary")
     """
 
     configurable = Configuration.from_runnable_config(config)
     if state.research_loop_count < configurable.max_web_research_loops:
-        return "web_research"
+        return "reflect_on_summary"
     else:
         return "finalize_summary"
 
@@ -479,8 +467,8 @@ builder.add_node("finalize_summary", finalize_summary)
 builder.add_edge(START, "generate_query")
 builder.add_edge("generate_query", "web_research")
 builder.add_edge("web_research", "summarize_sources")
-builder.add_edge("summarize_sources", "reflect_on_summary")
-builder.add_conditional_edges("reflect_on_summary", route_research)
+builder.add_conditional_edges("summarize_sources", route_research)
+builder.add_edge("reflect_on_summary", "web_research")
 builder.add_edge("finalize_summary", END)
 
 graph = builder.compile()
