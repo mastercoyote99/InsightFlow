@@ -6,7 +6,8 @@ from typing import Dict, Any, List, Union, Optional
 from markdownify import markdownify
 from langsmith import traceable
 from tavily import TavilyClient
-from duckduckgo_search import DDGS
+from ddgs import DDGS
+from urllib.parse import urlparse
 
 from langchain_community.utilities import SearxSearchWrapper
 
@@ -186,14 +187,32 @@ def duckduckgo_search(
                                             otherwise same as content
     """
     try:
-        with DDGS() as ddgs:
+        with DDGS(timeout=20) as ddgs:
             results = []
-            search_results = list(ddgs.text(query, max_results=max_results))
+            search_results = list(
+                ddgs.text(
+                    query,
+                    max_results=max_results * 3,
+                    backend="auto",
+                )
+            )
+            print(f"[搜索] query={query!r}, 原始结果数={len(search_results)}")
 
             for r in search_results:
                 url = r.get("href")
                 title = r.get("title")
                 content = r.get("body")
+                parsed_url = urlparse(url or "")
+                hostname = (parsed_url.hostname or "").lower()
+
+                is_bing_ad = (
+                    hostname == "bing.com"
+                    or hostname.endswith(".bing.com")
+                ) and parsed_url.path.rstrip("/") == "/aclick"
+
+                if is_bing_ad:
+                    print(f"[过滤广告] {title}")
+                    continue
 
                 if not all([url, title, content]):
                     print(f"Warning: Incomplete result from DuckDuckGo: {r}")
@@ -211,12 +230,21 @@ def duckduckgo_search(
                     "raw_content": raw_content,
                 }
                 results.append(result)
+                if len(results) >= max_results:
+                    break
+
+            print(f"[搜索] 可用结果数={len(results)}")
+
+            if not results:
+                raise ValueError(
+                    "No usable search results; stopped before summarization."
+                )
 
             return {"results": results}
     except Exception as e:
-        print(f"Error in DuckDuckGo search: {str(e)}")
-        print(f"Full error details: {type(e).__name__}")
-        return {"results": []}
+        raise RuntimeError(
+            f"DuckDuckGo search failed: {type(e).__name__}: {e}"
+        ) from e
 
 
 @traceable

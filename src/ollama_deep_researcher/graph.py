@@ -1,5 +1,6 @@
 import json
-
+import os
+from langchain_openai import ChatOpenAI
 from pydantic import BaseModel, Field
 from typing_extensions import Literal
 
@@ -105,6 +106,24 @@ def get_llm(configurable: Configuration):
     Returns:
         Configured LLM instance
     """
+    if configurable.llm_provider == "openrouter":
+        api_key = os.environ.get("OPENROUTER_API_KEY", "").strip()
+        if not api_key:
+            raise ValueError("Missing OPENROUTER_API_KEY")
+
+        if not configurable.use_tool_calling:
+            raise ValueError(
+                "Set USE_TOOL_CALLING=true for this OpenRouter model."
+            )
+
+        return ChatOpenAI(
+            base_url="https://openrouter.ai/api/v1",
+            api_key=api_key,
+            model=configurable.local_llm,
+            temperature=0,
+            timeout=90,
+            max_retries=0,
+        )
     if configurable.llm_provider == "lmstudio":
         if configurable.use_tool_calling:
             return ChatLMStudio(
@@ -300,7 +319,9 @@ def summarize_sources(state: SummaryState, config: RunnableConfig):
     configurable = Configuration.from_runnable_config(config)
 
     # For summarization, we don't need structured output, so always use regular mode
-    if configurable.llm_provider == "lmstudio":
+    if configurable.llm_provider == "openrouter":
+        llm = get_llm(configurable)
+    elif configurable.llm_provider == "lmstudio":
         llm = ChatLMStudio(
             base_url=configurable.lmstudio_base_url,
             model=configurable.local_llm,
@@ -435,7 +456,7 @@ def route_research(
     """
 
     configurable = Configuration.from_runnable_config(config)
-    if state.research_loop_count <= configurable.max_web_research_loops:
+    if state.research_loop_count < configurable.max_web_research_loops:
         return "web_research"
     else:
         return "finalize_summary"
