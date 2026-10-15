@@ -15,6 +15,7 @@
 - [示例报告及阅读说明](examples/README.md)
 - [制造业设备维护研究报告](examples/manufacturing-maintenance-report-v0.1.md)
 - [开发过程与验证记录](docs/development-log.md)
+- [一轮与两轮搜索评估：结果、证据与改进决定](docs/evaluation-v0.1.md)
 
 ## 为什么做这个项目
 
@@ -108,7 +109,7 @@ python -m venv .venv
 ### 3. 运行
 
 ```powershell
-.\.venv\Scripts\python.exe .\run_insightflow.py
+.\.venv\Scripts\python.exe .\run_insightflow.py --loops 1
 ```
 
 程序读取 `OPENROUTER_API_KEY` 环境变量；
@@ -117,6 +118,7 @@ python -m venv .venv
 需要自行准备 OpenRouter API Key。
 模型可用性、额度与费用以服务方实时信息为准。
 不要将密钥写入代码或提交至 Git。
+
 
 ### 4. 查看结果
 
@@ -128,6 +130,15 @@ outputs/mes_rag_report_日期_时间.md
 
 `outputs/` 不纳入版本控制。
 经过挑选的展示样例单独放在 `examples/`。
+
+运行脚本通过 `--loops 1` 或 `--loops 2` 设置搜索轮数。
+
+实验结果保存于 `outputs/evaluation/<运行标识>_loops<轮数>/`：
+- `report.md`：成功运行生成的报告。
+- `metadata.json`：配置、代码指纹、耗时和运行状态。
+- `events.jsonl`：已完成节点及其输出。
+
+失败或中断时保留已有记录，不保证生成最终报告。
 
 ## 主要文件
 

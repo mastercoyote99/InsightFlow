@@ -1,0 +1,31 @@
+{
+  "run_id": "20261015_231002_544944",
+  "started_at": "2026-10-15T23:10:02.546944+08:00",
+  "topic": "研究检索增强生成（Retrieval-Augmented Generation）在制造业设备维护知识问答中的应用。搜索时使用简洁的英文关键词，围绕一个核心问题，初次搜索优先使用 retrieval augmented generation manufacturing maintenance，后续搜索针对资料中的信息缺口，不要堆砌多个场景。最终报告用中文，分为：来源支持的发现、对 MES 运维的应用建议、证据不足与待验证问题。每条来源支持的发现使用【来源：原始标题】标注，保留检索提供的标题，不自行补全被截断的标题。正文不要生成网址，原始链接由程序在报告末尾统一附上。厂商或项目作者的能力描述必须明确标注为自述，不得当作独立验证的效果。应用建议明确标注为建议，不得写成已验证事实。如果资料只有搜索摘要，明确说明未核对全文，不要推断摘要未提供的实验结果或效果数字。",
+  "settings": {
+    "LLM_PROVIDER": "openrouter",
+    "LOCAL_LLM": "nvidia/nemotron-3.5-lightning:free",
+    "USE_TOOL_CALLING": "true",
+    "SEARCH_API": "duckduckgo",
+    "MAX_WEB_RESEARCH_LOOPS": "2",
+    "FETCH_FULL_PAGE": "false"
+  },
+  "git_commit": "22d4e0d8fafa3fd00d933d2edd8297aaefcd74bc",
+  "git_status": "M run_insightflow.py\n?? test_openrouter.py\n?? test_project_model.py",
+  "code_sha256": "111021cfff2acad94c494eb9b539f1f36c1ca7c98d6e9498db05b03e2b4afff0",
+  "status": "success",
+  "completed_search_loops": 2,
+  "completed_nodes": [
+    "generate_query",
+    "web_research",
+    "summarize_sources",
+    "reflect_on_summary",
+    "web_research",
+    "summarize_sources",
+    "reflect_on_summary",
+    "finalize_summary"
+  ],
+  "timing_scope": "graph execution and local event logging; excludes key input",
+  "elapsed_seconds": 387.345,
+  "finished_at": "2026-10-15T23:16:29.937560+08:00"
+}
